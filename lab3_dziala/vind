@@ -1,0 +1,6 @@
+#!/bin/bash
+
+for f in "$1"/* ; do 
+	[[ -d "$f" ]] && ./vind "$f" $2; 
+	[[ -f "$f" ]] && [[ `echo "$f" | grep $2` ]] && echo "$f";
+done
