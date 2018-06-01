@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/sem.h>
@@ -144,8 +145,8 @@ int main()
     intro();
     signal(SIGINT, cleanMemory);
 
-    if((memory = shmget(key,sizeof(int)*10,IPC_CREAT|IPC_EXCL|0777)) == -1){
-        if((memory = shmget(key,sizeof(int)*10,0)) == -1){
+    if((memory = shmget(key,sizeof(int)*39,IPC_CREAT|IPC_EXCL|0777)) == -1){
+        if((memory = shmget(key,sizeof(int)*39,0)) == -1){
             printf("\nNie mozna połączyć z grą - bląd pamieci wspoldzielonej!\n");
             exit(1);
         }
@@ -169,7 +170,7 @@ int main()
         printf("Gracz 1 - grasz kółkiem\n");
     }
 
-    shm = shmat(memory,0,0);
+    shm = shmat(memory,(void*)0,0);
     exportMemory();
 
     if(strcmp(playername,"Gracz1") == 0){
