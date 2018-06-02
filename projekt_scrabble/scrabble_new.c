@@ -15,7 +15,7 @@
 #include <sys/shm.h>
 #include <signal.h>
 
-#define key 1492
+#define key 1495
 #define sem1 0
 #define sem2 1
 
@@ -49,13 +49,14 @@ int used[36] = {
 };
 int score1 = 0;
 int score2 = 0;
-int tilesleft1 = 20;
-int tilesleft2 = 20;
+int tilesleft1 = 18;
+int tilesleft2 = 18;
 int whowon = 0;
 char *playername;
 int Gracz1 = 1;
 int Gracz2 = 2;
 int *shm; // shm = shared memory
+bool endgame = false;
 
 struct sembuf Gracz1_lock = {sem2,-1,0};  
 struct sembuf Gracz1_unlock = {sem1,1,0}; 
@@ -123,6 +124,7 @@ void exportMemory(){
     shm[74] = tilesleft1;
     shm[75] = tilesleft2;
     shm[76] = whowon;
+    //printf("exported\n");
 }
 
 void importMemory(){
@@ -133,6 +135,15 @@ void importMemory(){
     tilesleft1 = shm[74];
     tilesleft2 = shm[75];
     whowon = shm[76];
+    int x = 0;
+    int y = 0;
+    for (int i = 0; i < 36; i++) 
+        if (shm[i] != 0)
+            x = shm[i];
+    for (int i = 0; i < 36; i++) 
+        if (board[i] != 0)
+            y = board[i];
+    //printf("imported %i %i\n", x, y);
 }
 
 
@@ -163,14 +174,22 @@ void drawEmptyBoard(int x, int y) {
     }
 }
 
-void drawBoard() {
+void hideBoard() {
     clearArea(100, 100, 600, 600);
+}
+
+void drawBoard() {
     drawEmptyBoard(100, 100);
     for (int i = 0; i < 36; i++) {
         char letter[1];
         charToString(board[i], letter);
         drawText(letter, 150+(i%6*100), 150+(i/6*100));
     }
+}
+
+void drawFinalScreen(char* text) {
+    XDrawRectangle(display, win, gc, 100, 100, 600, 600);
+    drawText(text, 400, 400);
 }
 
 void drawItemsBoard() {
@@ -192,6 +211,29 @@ void destroyWindow() {
     XCloseDisplay(display);
     cleanMemory();
     exit(EXIT_SUCCESS);
+}
+
+void endTheGame(int player) {
+    while (2137 == 2137) {
+        XNextEvent(display, &report);
+        switch (report.type) {
+            case Expose : {
+                if ( report.xexpose.count != 0 ) break;
+                break;
+            }
+            case ConfigureNotify : {
+                width  = report.xconfigure.width;
+                height = report.xconfigure.height;
+                break;
+            }
+            case DestroyNotify : {
+                destroyWindow();
+            }      
+            case KeyPress : {
+                if (report.xkey.keycode == 0x09) destroyWindow();
+            }
+        }
+    }
 }
 
 // =========== Game Mechanisms
@@ -216,7 +258,7 @@ void renderItemsboard(int player) {
 }
 
 void hideItemsboard() {
-    clearArea(100, 760, 600, 140);
+    clearArea(100, 720, 620, 180);
 }
 
 void shuffleItemsboard(int index) {
@@ -238,130 +280,132 @@ int is_ready(){
 }
 
 int makeMove(int player) {
-    printf("Your turn");
     bool picked = false;
     bool chosen = false;
     char currenttile;
     //renderItemsboard(player);
     //clearArea(100, 100, 600, 40);
-    drawText("Pick a tile you want to place:", itemsboard.DisplayX, itemsboard.DisplayY-20);
-    while (!picked) {
-        renderItemsboard(player);
-        switch (report.type) {
-            case ButtonPress : {
-                switch (report.xbutton.button) {
-                    case Expose : {
-                        if ( report.xexpose.count != 0 ) break;
-                        break;
-                    }
-                    case ConfigureNotify : {
-                        width  = report.xconfigure.width;
-                        height = report.xconfigure.height;
-                        break;
-                    }
-                    case Button1 : {
-                        int x = report.xbutton.x;
-                        int y = report.xbutton.y;
-                        printf("%i %i\n", x, y);
-                        if (x >= 100 && x <= 700 && y >= 800 && y <= 900) {
-                            int addr = (x-100)/100;
-                            currenttile = itemsboard.item[addr];
-                            if (player == Gracz1) tilesleft1--;
-                            if (player == Gracz2) tilesleft2--;
-                            picked = true;
+    if (tilesleft1 == 0 && tilesleft2 == 0) {
+        endgame = true;
+        clearArea(100, 100, 600, 600);
+        drawFinalScreen("Game Over");
+        endTheGame(player);
+    } else if (endgame) {
+    } else {
+        char buf[100];
+        clearArea(100, 45, 600, 55);
+        if (player == Gracz1) sprintf(buf, "Points: %i", score1);
+        if (player == Gracz2) sprintf(buf, "Points: %i", score2);
+        drawText(buf, 100, 60);
+        drawText("Your turn.", 100, 80);
+        drawText("Pick a tile you want to place:", itemsboard.DisplayX, itemsboard.DisplayY-20);
+        while (!picked) {
+            renderItemsboard(player);
+            XNextEvent(display, &report);
+            switch (report.type) {
+                case ButtonPress : {
+                    switch (report.xbutton.button) {
+                        case Expose : {
+                            if ( report.xexpose.count != 0 ) break;
+                            break;
                         }
+                        case ConfigureNotify : {
+                            width  = report.xconfigure.width;
+                            height = report.xconfigure.height;
+                            break;
+                        }
+                        case Button1 : {
+                            int x = report.xbutton.x;
+                            int y = report.xbutton.y;
+                            printf("%i %i\n", x, y);
+                            if (x >= 100 && x <= 700 && y >= 800 && y <= 900) {
+                                int addr = (x-100)/100;
+                                currenttile = itemsboard.item[addr];
+                                printf("%i\n", currenttile);
+                                itemsboard.item[addr] = (rand()%26)+65;
+                                if (player == Gracz1) tilesleft1--;
+                                if (player == Gracz2) tilesleft2--;
+                                picked = true;
+                                XFlush(display);
+                            }
+                        }
+                        default : break;
                     }
-                    default : break;
+                    break;
+                }   
+                case DestroyNotify : {
+                    destroyWindow();
+                }      
+                case KeyPress : {
+                    if (report.xkey.keycode == 0x09) destroyWindow();
                 }
-                break;
-            }   
-            case DestroyNotify : {
-                destroyWindow();
-            }      
-            case KeyPress : {
-                if (report.xkey.keycode == 0x09) destroyWindow();
+            }
+        }
+        hideItemsboard();
+        clearArea(100, 760, 620, 40);
+        char buffer[100];
+        sprintf(buffer, "You picked \"%c\"! Place it on a free spot on the board.", currenttile);
+        drawText(buffer, itemsboard.DisplayX, itemsboard.DisplayY-20);
+        while (!chosen) {
+            drawBoard();
+            XNextEvent(display, &report);
+            switch (report.type) {
+                case ButtonPress : {
+                    switch (report.xbutton.button) {
+                        case Expose : {
+                            if ( report.xexpose.count != 0 ) break;
+                            break;
+                        }
+                        case ConfigureNotify : {
+                            width  = report.xconfigure.width;
+                            height = report.xconfigure.height;
+                            break;
+                        }
+                        case Button1 : {
+                            int x = report.xbutton.x;
+                            int y = report.xbutton.y;
+                            printf("%i %i\n", x, y);
+                            int addr = (y-100)/100*6 + (x-100)/100%6;
+                            if (x >= 100 && x <= 700 && y >= 100 && y <= 700 && used[addr] == 0) {
+                                printf("%i at %i\n", currenttile, addr);
+                                board[addr] = (int) currenttile;
+                                used[addr] = 1;
+                                chosen = true;
+                                hideBoard();
+                                drawBoard();
+                                hideItemsboard();
+                                if (tilesleft1 == 0 && tilesleft2 == 0 && player == Gracz1) {
+                                    endgame = true;
+                                    clearArea(100, 100, 600, 600);
+                                    drawFinalScreen("Game Over");
+                                }
+                                if (tilesleft2 == 0 && player == Gracz2) {
+                                    endgame = true;
+                                    clearArea(100, 100, 600, 600);
+                                    drawFinalScreen("Game Over");
+                                }
+                                clearArea(100, 60, 600, 20);
+                                if (player == Gracz1) drawText("Waiting for the turn of the player 2.", 100, 80);
+                                if (player == Gracz2) drawText("Waiting for the turn of the player 1.", 100, 80);
+                                XFlush(display);
+                            }
+                        }
+                        default : break;
+                    }
+                    break;
+                }   
+                case DestroyNotify : {
+                    destroyWindow();
+                }      
+                case KeyPress : {
+                    if (report.xkey.keycode == 0x09) destroyWindow();
+                }
             }
         }
     }
-
-    hideItemsboard();
-    clearArea(100, 760, 600, 40);
-    char buffer[100];
-    sprintf(buffer, "You picked \"%c\"! Place it on a free spot on the board.", currenttile);
-    drawText(buffer, itemsboard.DisplayX, itemsboard.DisplayY-20);
-    while (!chosen) {
-        switch (report.type) {
-            case ButtonPress : {
-                switch (report.xbutton.button) {
-                    case Button1 : {
-                        int x = report.xbutton.x;
-                        int y = report.xbutton.y;
-                        int addr = (y-100)/100*6 + (x-100)%100;
-                        if (x >= 100 && x <= 700 && y >= 100 && y <= 700 && used[addr] == 0) {
-                            board[addr] = (int) currenttile;
-                            used[addr] = 1;
-                            chosen = true;
-                        }
-                    }
-                    default : break;
-                }
-                break;
-            }   
-            case DestroyNotify : {
-                destroyWindow();
-            }      
-            case KeyPress : {
-                if (report.xkey.keycode == 0x09) destroyWindow();
-            }
-        }
-    }
-    clearArea(100, 760, 600, 40);
     return 0;
 }
 
-
-void makeMoveBeta() {
-    char currenttile;
-    switch (report.type) {
-            case Expose : {
-                if ( report.xexpose.count != 0 ) break;
-                break;
-            }
-
-            case ConfigureNotify : {
-                width  = report.xconfigure.width;
-                height = report.xconfigure.height;
-                break;
-            }
-
-            case ButtonPress : {
-                //clearArea(100, 100, 400, 400);
-                switch (report.xbutton.button) {
-                    case Button1 : {
-                        int x = report.xbutton.x;
-                        int y = report.xbutton.y;
-                        if (x >= 100 && x <= 700 && y >= 800 && y <= 900) {
-                            int addr = (x-100)/100;
-                            clearArea(100, 760, 600, 40);
-                            currenttile = itemsboard.item[addr];
-                            char buffer[100];
-                            sprintf(buffer, "You picked \"%c\"! Place it on a free spot on the board.", currenttile);
-                            drawText(buffer, itemsboard.DisplayX, itemsboard.DisplayY-20);
-                            printf("%c\n", itemsboard.item[addr]);
-                        }
-                    }
-                    default : break;
-                }
-                break;
-            }   
-            case DestroyNotify : {
-                destroyWindow();
-            }      
-            case KeyPress : {
-                if (report.xkey.keycode == 0x09) destroyWindow();
-            }
-        }
-}
 
 
 // =========== MAIN
@@ -486,13 +530,10 @@ int main(int argc, char* argv[]) {
                 semaphores = semget(key,2,0);
                 playername = "Gracz2";
                 printf("You start as a player 2\n");
-                
-                printf("gracz 2");
             }
             else {
                 playername = "Gracz1";
                 printf("You start as a player 1\n");
-                printf("gracz 1");
             }
             shm = shmat(memory,(void*)0,0);
             start = false;
@@ -504,21 +545,17 @@ int main(int argc, char* argv[]) {
             semctl(semaphores,sem1,SETVAL,0);
             semctl(semaphores,sem2,SETVAL,1);
             clearArea(100, 60, 600, 20);
-            //drawText("You're player 1.", 100, 40);
-            //drawText("Points: 0", 100, 60);
-            drawText("Your turn.", 100, 80);
+            drawText("You're player 1.", 100, 40);
             if(makeMove(Gracz1) == 0){
                 exportMemory();
+                hideBoard();
                 drawBoard();
                 while(1){
-                    clearArea(100, 60, 600, 20);
-                    drawText("Waiting for the turn of the player 2.", 100, 80);
+                    drawBoard();
                     semop(semaphores,&Gracz2_lock,1);
                     importMemory();
                     drawBoard();
                     //checkResult();
-                    clearArea(100, 60, 600, 20);
-                    drawText("Your turn.", 100, 80);
                     if(makeMove(Gracz1) == 0){
                         //checkBoard(Gracz1);
                         exportMemory();
@@ -531,20 +568,15 @@ int main(int argc, char* argv[]) {
         } else {
             clearArea(100, 60, 600, 20);
             drawText("You're player 2.", 100, 40);
-            drawText("Points: 0", 100, 60);
-            drawText("Waiting for the turn of the player 1.", 100, 80);
             while (2137==2137) {
                 importMemory();
                 if(is_ready() == 0){
                     while(1){
-                        clearArea(100, 60, 600, 20);
-                        drawText("Waiting for the turn of the player 1.", 100, 80);
+                        drawBoard();
                         semop(semaphores,&Gracz1_lock,1);
                         importMemory();
                         drawBoard();
                         //checkResult();
-                        clearArea(100, 60, 600, 20);
-                        drawText("Your turn.", 100, 80);
                         if(makeMove(Gracz2) == 0){
                             //checkBoard(Gracz2);
                             exportMemory();
