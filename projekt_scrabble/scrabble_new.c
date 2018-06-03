@@ -15,10 +15,11 @@
 #include <sys/shm.h>
 #include <signal.h>
 
-#define key 1495
+#define key 1488
 #define sem1 0
 #define sem2 1
 
+#define DICTSIZE 130
 #define MEMSIZE 77
 // 0-35  tile on the board 
 // 36-71 if the tile is used
@@ -28,6 +29,39 @@
 
 // =========== GLOBAL VARIABLES
 // Semaphores and shared memory
+
+
+
+ char dict[DICTSIZE][3] = {
+    "CAT", "DOG", "BUG", "PIG", "BEE",
+    "COW", "HEN", "FOX", "CAR", "TED",
+    "AND", "NOR", "LET", "SET", "GET",
+    "MET", "DAD", "MUM", "MOM", "MAD",
+    "BAD", "SAD", "HUD", "LED", "CUT",
+    "RUN", "LIT", "BIT", "BUT", "HAD",
+    "FAN", "BAN", "CAN", "DOT", "DID",
+    "LOT", "HAT", "HAS", "OAT", "SIT",
+    "MIA", "SIA", "PIA", "ERA", "SIP",
+    "REP", "ARM", "ACE", "ATE", "APE",
+    // ^50
+    "PEN", "KEN", "LAN", "ZAP", "ZIP",
+    "OFF", "OLD", "EVE", "BIG", "RIG",
+    "ADD", "SUB", "YOU", "MUD", "SUN",
+    "GIG", "GEM", "MUG", "FOG", "PAL",
+    "FAD", "LAD", "DAM", "LAB", "SQL",
+    "FAQ", "WTF", "WEB", "BOW", "RIB",
+    "CAB", "COP", "ICE", "AIR", "BID",
+    "CIG", "GIN", "JEN", "JAR", "PAR",
+    "RED", "GIT", "TAP", "EAR", "EYE",
+    "LIP", "LEG", "BED", "CIA", "NSA",
+    // ^100
+    "NOT", "FUN", "GAS", "BUS", "BOT",
+    "CUB", "NET", "VET", "HAM", "ROD",
+    "MAY", "WAY", "DAY", "DRY", "JAM",
+    "SHE", "WET", "TIP", "REA", "SEA",
+    "TEN", "SIX", "TWO", "ONE", "ELF",
+    "SEX", "USA", "ASS", "GAY", "BAY"
+ };
 
 int memory;
 int semaphores;
@@ -187,9 +221,13 @@ void drawBoard() {
     }
 }
 
-void drawFinalScreen(char* text) {
+void drawFinalScreen(char* text, int player) {
     XDrawRectangle(display, win, gc, 100, 100, 600, 600);
-    drawText(text, 400, 400);
+    drawText(text, 350, 400);
+    if (score1 > score2) drawText("Player 1 won.", 350, 420);
+    if (score1 < score2) drawText("Player 2 won.", 350, 420);
+    if (score1 == score2) drawText("Stalemate!", 350, 420);
+    
 }
 
 void drawItemsBoard() {
@@ -238,13 +276,23 @@ void endTheGame(int player) {
 
 // =========== Game Mechanisms
 
+int randomLetter() {
+    if ((rand()%4) == 0) {
+        char vowels[6] = {'A', 'E', 'I', 'O', 'U', 'Y'};
+        return (int) vowels[(rand()%6)];
+    } else {
+        return (rand()%26)+65;
+    }
+}
+
 void initItemsboard() {
-    itemsboard.item[0] = (rand()%26)+65;
-    itemsboard.item[1] = (rand()%26)+65;
-    itemsboard.item[2] = (rand()%26)+65;
-    itemsboard.item[3] = (rand()%26)+65;
-    itemsboard.item[4] = (rand()%26)+65;
-    itemsboard.item[5] = (rand()%26)+65;
+    // (rand()%26)+65;
+    itemsboard.item[0] = randomLetter();
+    itemsboard.item[1] = randomLetter();
+    itemsboard.item[2] = randomLetter();
+    itemsboard.item[3] = randomLetter();
+    itemsboard.item[4] = randomLetter();
+    itemsboard.item[5] = randomLetter();
     itemsboard.DisplayX = 100;
     itemsboard.DisplayY = 800;
 }
@@ -279,24 +327,57 @@ int is_ready(){
     }
 }
 
+int checkScore(int x, int y) {
+    int score = 0;
+    // for each word
+    for (int i = 0; i < DICTSIZE; i++) {
+        // check the X axis
+        int left = y*6;
+        for (int j = 0; j < 4; j++) {
+            if ((dict[i][0] == board[left+j]) && (dict[i][1] == board[left+j+1]) && (dict[i][2] == board[left+j+2])
+                && (used[left+j] != 2 || used[left+j+1] != 2 || used[left+j+2] != 2)) {
+                used[left+j] = 2;
+                used[left+j+1] = 2;
+                used[left+j+2] = 2;
+                score++;
+            }
+        }
+        // check the Y axis
+        int up = x;
+        for (int j = 0; j < 4; j++) {
+            if ((dict[i][0] == board[up+6*j]) && (dict[i][1] == board[up+6*(j+1)]) && (dict[i][2] == board[up+6*(j+2)])
+                && (used[up+6*j] != 2 || used[up+6*(j+1)] != 2 || used[up+6*(j+2)] != 2)) {
+                used[up+6*j] = 2;
+                used[up+6*(j+1)] = 2;
+                used[up+6*(j+2)] = 2;
+                score++;
+            }
+        }
+    }
+    return score;
+}
+
+
+void showScoreboard(int player) {
+    char buf[100];
+    clearArea(100, 45, 600, 55);
+    if (player == Gracz1) sprintf(buf, "Points: %i", score1);
+    if (player == Gracz2) sprintf(buf, "Points: %i", score2);
+    drawText(buf, 100, 60);
+}
+
 int makeMove(int player) {
     bool picked = false;
     bool chosen = false;
     char currenttile;
-    //renderItemsboard(player);
-    //clearArea(100, 100, 600, 40);
     if (tilesleft1 == 0 && tilesleft2 == 0) {
         endgame = true;
         clearArea(100, 100, 600, 600);
-        drawFinalScreen("Game Over");
+        drawFinalScreen("Game Over", player);
         endTheGame(player);
     } else if (endgame) {
     } else {
-        char buf[100];
-        clearArea(100, 45, 600, 55);
-        if (player == Gracz1) sprintf(buf, "Points: %i", score1);
-        if (player == Gracz2) sprintf(buf, "Points: %i", score2);
-        drawText(buf, 100, 60);
+        showScoreboard(player);
         drawText("Your turn.", 100, 80);
         drawText("Pick a tile you want to place:", itemsboard.DisplayX, itemsboard.DisplayY-20);
         while (!picked) {
@@ -317,12 +398,12 @@ int makeMove(int player) {
                         case Button1 : {
                             int x = report.xbutton.x;
                             int y = report.xbutton.y;
-                            printf("%i %i\n", x, y);
+                            //printf("%i %i\n", x, y);
                             if (x >= 100 && x <= 700 && y >= 800 && y <= 900) {
                                 int addr = (x-100)/100;
                                 currenttile = itemsboard.item[addr];
                                 printf("%i\n", currenttile);
-                                itemsboard.item[addr] = (rand()%26)+65;
+                                itemsboard.item[addr] = randomLetter();
                                 if (player == Gracz1) tilesleft1--;
                                 if (player == Gracz2) tilesleft2--;
                                 picked = true;
@@ -364,25 +445,29 @@ int makeMove(int player) {
                         case Button1 : {
                             int x = report.xbutton.x;
                             int y = report.xbutton.y;
-                            printf("%i %i\n", x, y);
                             int addr = (y-100)/100*6 + (x-100)/100%6;
                             if (x >= 100 && x <= 700 && y >= 100 && y <= 700 && used[addr] == 0) {
-                                printf("%i at %i\n", currenttile, addr);
+                                //printf("%i at %i\n", currenttile, addr);
                                 board[addr] = (int) currenttile;
                                 used[addr] = 1;
+
                                 chosen = true;
+
+                                if (player == Gracz1) score1 += checkScore(((x-100)/100), ((y-100)/100));
+                                if (player == Gracz2) score2 += checkScore(((x-100)/100), ((y-100)/100));
+                                showScoreboard(player);
                                 hideBoard();
                                 drawBoard();
                                 hideItemsboard();
                                 if (tilesleft1 == 0 && tilesleft2 == 0 && player == Gracz1) {
                                     endgame = true;
                                     clearArea(100, 100, 600, 600);
-                                    drawFinalScreen("Game Over");
+                                    drawFinalScreen("Game Over", player);
                                 }
                                 if (tilesleft2 == 0 && player == Gracz2) {
                                     endgame = true;
                                     clearArea(100, 100, 600, 600);
-                                    drawFinalScreen("Game Over");
+                                    drawFinalScreen("Game Over", player);
                                 }
                                 clearArea(100, 60, 600, 20);
                                 if (player == Gracz1) drawText("Waiting for the turn of the player 2.", 100, 80);
@@ -411,8 +496,9 @@ int makeMove(int player) {
 // =========== MAIN
 
 int main(int argc, char* argv[]) {
-    srand(time(NULL));
 
+    srand(time(NULL));
+    //loadDictionary();
     signal(SIGINT, cleanMemory);
 
     appname = argv[0];
@@ -484,10 +570,7 @@ int main(int argc, char* argv[]) {
 
 
     /*  Load a font called "9x15"  */
-
     setFont("10x20");
-
-
     /*  Create graphics context  */
 
     gc = XCreateGC(display, win, 0, &values);
@@ -495,13 +578,12 @@ int main(int argc, char* argv[]) {
     XSetBackground(display, gc, WhitePixel(display, screen_num));
     XSetForeground(display, gc, BlackPixel(display, screen_num));
 
-
     /*  Display Window  */
-
     XMapWindow(display, win);
-
     
-    /*  Enter event loop  */
+    //  Enter event loop 
+
+    //  LET THE SHOW BEGIN!
 
     initItemsboard();
 
@@ -541,7 +623,6 @@ int main(int argc, char* argv[]) {
 
         ///*
         if (strcmp(playername,"Gracz1") == 0) {
-
             semctl(semaphores,sem1,SETVAL,0);
             semctl(semaphores,sem2,SETVAL,1);
             clearArea(100, 60, 600, 20);
@@ -555,12 +636,9 @@ int main(int argc, char* argv[]) {
                     semop(semaphores,&Gracz2_lock,1);
                     importMemory();
                     drawBoard();
-                    //checkResult();
                     if(makeMove(Gracz1) == 0){
-                        //checkBoard(Gracz1);
                         exportMemory();
                         drawBoard();
-                        //checkResult();
                     }
                     semop(semaphores,&Gracz2_unlock,1);
                 }
@@ -576,12 +654,9 @@ int main(int argc, char* argv[]) {
                         semop(semaphores,&Gracz1_lock,1);
                         importMemory();
                         drawBoard();
-                        //checkResult();
                         if(makeMove(Gracz2) == 0){
-                            //checkBoard(Gracz2);
                             exportMemory();
                             drawBoard();
-                            //checkResult();
                         }
                         semop(semaphores,&Gracz1_unlock,1);
                     }
