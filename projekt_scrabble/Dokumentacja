@@ -1,0 +1,54 @@
+Imię i nazwisko: Paweł Lipkowski
+Zadanie: Micro-Scrabble
+
+1. Uzasadnienie
+Użyto semaforów IPC i wykorzystano pamięć współdzieloną, aby zapewnić szybką 
+i bezkonfliktową współpracę dwóch terminali graficznych z grami. Pamięć współ-
+dzielona jest najszybszą metodą przenoszenia danych między klientami gry, a
+użycie semaforów pozwala obu terminalom przypisanie jednoznaczne ról w grze,
+mianowicie kto jest graczem 1, a kto graczem 2. Ponadto semafory sprawiają, 
+że gra obu graczy odbywa się naprzemiennie, jeden gracz wykonuje swój ruch,
+potem następny i tak na przemian.
+
+
+2. Zasady gry:
+    2.1. Celem gry jest zdobywanie punktów poprzez odgadywanie trójliterowych słów 
+         pochodzących z języku angielskiego (np. cat, dog itd.). Słowa są układane
+         z klocków umieszczanych na planszy poziomo lub pionowo. Punkty są przyzna-
+         wane, jeżeli sprawdzając od lewej do prawej (poziomo w prawo) bądź z góry 
+         do dołu (pionowo w dół), znaleziono słowo będące w słowniku programu.
+    2.2. Zaczyna gracz 1. Gracz 2 dostaje planszę dopiero po wykonaniu ruchu przez 
+         gracza 1, dlatego gracz drugi ma na początku biały ekran w swoim oknie.
+    2.3. Gracze naprzemiennie wykonują swoje ruchy. Ruch polega na dobraniu klocka
+         spośród sześciu dostępnych klocków i umieszczeniu go na planszy.
+    2.4. Gra odbywa się do momentu zapełnienia wszystkich pól na planszy.
+
+3. Wymagania
+    – system z rodziny Linux
+    – kompilator gcc i biblioteka graficzna Xlib
+    – program xterm
+    – rozdzielczość ekranu
+
+4. Działanie gry
+    4.1. kompilacja:   wykonać skrypt ./compile.sh
+    4.2. uruchomienie: po kompilacji wykonać skrypt ./GameForTwo.sh
+         Po wykonaniu skryptu uruchamiają się 2 okna nałożone na siebie, 
+         przy czym białe okno gracza 2 jest na wierzchu. Wystarczy je
+         przeciągnąć, by odsłonić okno gracza 1. Gracz pierwszy wykonuje
+         ruch, następnie uaktywnia się okno gracza 2 i ten wykonuje swój 
+         ruch, i tak na przemian gracze wykonują swoje ruchy.
+    4.3. zakończenie:   
+        a) Po zakończeniu gry należy uaktywnić okno gracza 1 i nacisnąć [Esc].
+           Jeżeli okno gracza nie zostanie automatycznie zamknięte, to uakty-
+           wnić okno 2 i podobnie zamknąć je, naciskając [Esc].
+        b) W przypadku przedczesnego zakończenia gry należy zamknąć wszystkie
+           okna graficzne gry oraz terminale obsługujące je za pomocą przycisku
+           "X" służącego do zamykania okna (najczęściej na prawym górnym rogu 
+           ekranu).
+
+
+5. Sytuacje błędne:
+    – Błąd przy uruchamianiu aplikacji skryptem ./GameForTwo – odpowiedni komunikat na ekranie terminala uruchamiającego
+    – Błąd związany z utowrzeniem pamięci współdzielonej – odpowiedni komunikat na ekranach terminali sterujących grą
+    – Przedwczesne zamknięcie czyjegoś okna – ustosunkować się do punktu 4.3.b) i uruchomić grę jeszcze raz. W przypadku,
+      gdy po uruchomieniu gry oba terminale mają biały ekran, to jeszcze jeden raz wykonać 4.3.b) i uruchomić grę.

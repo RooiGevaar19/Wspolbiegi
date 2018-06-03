@@ -600,6 +600,7 @@ int main(int argc, char* argv[]) {
             if((memory = shmget(key,sizeof(int)*MEMSIZE,IPC_CREAT|IPC_EXCL|0777)) == -1){
                 if((memory = shmget(key,sizeof(int)*MEMSIZE,0)) == -1){
                     printf("\nERROR: Cannot connect with the game - no shared memory!\n");
+                    getchar();
                     exit(1);
                 } else {
                     //printf("\nTwoja nazwa gracza: ");
