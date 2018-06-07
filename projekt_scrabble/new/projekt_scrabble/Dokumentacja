@@ -1,0 +1,63 @@
+Imię i nazwisko: Paweł Lipkowski
+Zadanie: Micro-Scrabble dla 2 osób
+
+1. Uzasadnienie
+Użyto semaforów IPC i wykorzystano pamięć współdzieloną, aby zapewnić szybką 
+i bezkonfliktową współpracę dwóch terminali graficznych z grami. Pamięć współ-
+dzielona jest najszybszą metodą przenoszenia danych między klientami gry, a
+użycie semaforów pozwala obu terminalom przypisanie jednoznaczne ról w grze,
+mianowicie kto jest graczem 1, a kto graczem 2. Ponadto semafory sprawiają, 
+że gra obu graczy odbywa się naprzemiennie, jeden gracz wykonuje swój ruch,
+potem następny i tak na przemian.
+
+
+2. Zasady gry i przebieg użytkowania programu:
+    2.1. Zasady Micro-Scrabble odbiegają w pewnym stopniu od zasad tradycyjnej we-
+         wersji Scrabble. Przykładowo, ograniczono pulę słów do słów trzyliterowych, 
+         zmniejszono rozmiar planszy do 6x6 pól, zniesiono premie słowne oraz ogra-
+         niczono ilość wstawianych klocków na turę do jednego.
+    2.2. Gra jest przeznaczona dla dwóch osób.
+    2.3. Celem gry jest zdobywanie punktów poprzez odgadywanie trójliterowych słów 
+         pochodzących z języka angielskiego (np. cat, dog itd.). Słowa są układane
+         z klocków umieszczanych na planszy poziomo lub pionowo. Punkty są przyzna-
+         wane, jeżeli sprawdzając od lewej do prawej (poziomo w prawo) bądź z góry 
+         do dołu (pionowo w dół), znaleziono słowo będące w słowniku programu.
+    2.4. Zaczyna gracz 1. Następnie gracze naprzemiennie wykonują swoje ruchy. 
+         Ruch polega na dobraniu klocka spośród sześciu dostępnych klocków i umie
+         szczeniu go na planszy. W miejscu dobranego klocka pojawia się następnym 
+         razem następny wylosowany klocek. 
+         Jeżeli w osi pionowej i/lub poziomej udało się za pomocą wstawionego klo-
+         cka ułożyć słowo z puli, to dostaje się za nie punkt. W przypadku, kiedy 
+         na obu osiach ułożyło się po jednym słowie, to gracz zdobywa 2 punkty.  
+    2.5. Gra odbywa się do momentu zapełnienia wszystkich pól na planszy.
+         Wygrywa ten gracz, który na końcu gry będzie miał większą ilość punktów 
+         (w przypadku równej liczby punktów następuje remis).
+         Koniec gry i jej wynik zostaną przedstawione graczowi i gracz będzie mógł
+         za pomocą klawisza ESC zamknąć okno gry.
+
+3. Wymagania
+    – system z rodziny Linux
+    – kompilator gcc i biblioteka graficzna Xlib
+    – X-serwer z nasłuchem wystarczającym do otrzymywania okien graficznych
+    – rozdzielczość ekranu zalecana 1920x1080 (rozmiar okna gry 800x900)
+
+4. Działanie gry
+    4.1. kompilacja:   Wykonać skrypt "compile.sh", który skompiluje kod źródłowy zawarty w
+                       pliku "scrabble_new.c" do pliku wykonywalnego aplikacji o nazwie
+                       "scrabble.app".
+    4.2. uruchomienie: Uruchomić aplikację "scrabble.app"
+                       Jeżeli nikt wcześniej nie uruchomił gry, to uruchamiający staje się
+                       hostem gry i czeka na przyjście gracza 2, mając możliwość wykonania 
+                       swojego pierwszego ruchu. Jeżeli jednak ktoś uruchomił grę, to uru-
+                       chamiający dołącza do rozgrywki gracza 1 i ewentualnie czeka na ruch
+                       gracza 1, jeżeli ten jeszcze go nie wykonał.
+   4.3. zakończenie:   Po zakończeniu rozgrywki i wypisaniu komunikatu o możliwości zamknię-
+                       cia okna gry dostosować się do owego komunikatu i nacisnąć klawisz
+                       Escape. Przerwanie gry w trakcie rozgrywki z poziomu okna gry jest
+                       zablokowane, aby uniemożliwić bezkarne ucieczki z gry.
+
+
+5. Sytuacje błędne:
+    – Błąd związany z utworzeniem pamięci współdzielonej – odpowiedni komunikat na ekranie terminala
+    – Brak wyświetlenia aplikacji po uruchomieniu – prawdopodobnie X-serwer nie ma nasłuchu na klienta
+      aplikacji. Aby nadać nasłuch, należy wykonać polecenie "xhost +".

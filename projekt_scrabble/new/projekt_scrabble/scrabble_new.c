@@ -21,7 +21,7 @@
 
 #define DICTSIZE 130
 #define MEMSIZE 77
-// 0-35  tile on the board 
+// 0-35  tile on the board
 // 36-71 if the tile is used
 // 72-73 score
 // 74-75 tiles
@@ -92,9 +92,9 @@ int Gracz2 = 2;
 int *shm; // shm = shared memory
 bool endgame = false;
 
-struct sembuf Gracz1_lock = {sem2,-1,0};  
-struct sembuf Gracz1_unlock = {sem1,1,0}; 
-struct sembuf Gracz2_lock = {sem1,-1,0}; 
+struct sembuf Gracz1_lock = {sem2,-1,0};
+struct sembuf Gracz1_unlock = {sem1,1,0};
+struct sembuf Gracz2_lock = {sem1,-1,0};
 struct sembuf Gracz2_unlock = {sem2,1,0};
 
 
@@ -114,7 +114,7 @@ char* icon_name   = "ScrabbleX";
 // Display variables
 char * display_name = NULL;
 unsigned int display_width, display_height;
-    
+
 // Miscellaneous X variables
 XSizeHints* size_hints;
 XWMHints* wm_hints;
@@ -142,14 +142,6 @@ void charToString(char ch, char* out) {
     out[0] = ch;
 }
 
-void cleanMemory(){
-    printf("\nKończenie gry.\n");
-    semctl(semaphores,0,IPC_RMID,0);
-    shmdt(shm);
-    shmctl(memory,IPC_RMID,0);
-    exit(0);
-}
-
 void exportMemory(){
     for (int i = 0; i < 36; i++) shm[i] = board[i];
     for (int i = 0; i < 36; i++) shm[i+36] = used[i];
@@ -171,13 +163,29 @@ void importMemory(){
     whowon = shm[76];
     int x = 0;
     int y = 0;
-    for (int i = 0; i < 36; i++) 
+    for (int i = 0; i < 36; i++)
         if (shm[i] != 0)
             x = shm[i];
-    for (int i = 0; i < 36; i++) 
+    for (int i = 0; i < 36; i++)
         if (board[i] != 0)
             y = board[i];
     //printf("imported %i %i\n", x, y);
+}
+
+int player2_isReady() {
+    if (tilesleft2 == 18) return 1;
+    return 0;
+}
+
+void cleanMemory(){
+    tilesleft1 = -1;
+    tilesleft2 = -2;
+    exportMemory();
+    printf("\nThe game has been interrupted.\n");
+    semctl(semaphores,0,IPC_RMID,0);
+    shmdt(shm);
+    shmctl(memory,IPC_RMID,0);
+    exit(0);
 }
 
 
@@ -227,7 +235,7 @@ void drawFinalScreen(char* text, int player) {
     if (score1 > score2) drawText("Player 1 won.", 350, 420);
     if (score1 < score2) drawText("Player 2 won.", 350, 420);
     if (score1 == score2) drawText("Stalemate!", 350, 420);
-    
+
 }
 
 void drawItemsBoard() {
@@ -251,11 +259,24 @@ void destroyWindow() {
     exit(EXIT_SUCCESS);
 }
 
+void showScoreboard(int player) {
+    char buf[100];
+    if (player == Gracz1) sprintf(buf, "Points: %i", score1);
+    if (player == Gracz2) sprintf(buf, "Points: %i", score2);
+    drawText(buf, 100, 60);
+}
+
+
 void endTheGame(int player) {
     while (2137 == 2137) {
         XNextEvent(display, &report);
         switch (report.type) {
             case Expose : {
+                drawText("Welcome to Micro-Scrabble!", 100, 20);
+                if (player == Gracz1) drawText("You're player 1. You host the game.", 100, 40);
+                if (player == Gracz2) drawText("You're player 2. You joined the game.", 100, 40);
+                showScoreboard(player);
+                drawFinalScreen("Game Over", player);
                 if ( report.xexpose.count != 0 ) break;
                 break;
             }
@@ -264,9 +285,12 @@ void endTheGame(int player) {
                 height = report.xconfigure.height;
                 break;
             }
+            case ClientMessage : {
+                destroyWindow();
+            }
             case DestroyNotify : {
                 destroyWindow();
-            }      
+            }
             case KeyPress : {
                 if (report.xkey.keycode == 0x09) destroyWindow();
             }
@@ -315,7 +339,7 @@ void shuffleItemsboard(int index) {
 
 int is_ready(){
     int i = 0;
-    if (board[0] == 0 && board[1] == 0 && board[2] == 0 && board[3] == 0 && board[4] == 0 && board[5] == 0 && 
+    if (board[0] == 0 && board[1] == 0 && board[2] == 0 && board[3] == 0 && board[4] == 0 && board[5] == 0 &&
         board[6] == 0 && board[7] == 0 && board[8] == 0 && board[9] == 0 && board[10] == 0 && board[11] == 0 &&
         board[12] == 0 && board[13] == 0 && board[14] == 0 && board[15] == 0 && board[16] == 0 && board[17] == 0 &&
         board[18] == 0 && board[19] == 0 && board[20] == 0 && board[21] == 0 && board[22] == 0 && board[23] == 0 &&
@@ -357,39 +381,41 @@ int checkScore(int x, int y) {
     return score;
 }
 
-
-void showScoreboard(int player) {
-    char buf[100];
-    clearArea(100, 45, 600, 55);
-    if (player == Gracz1) sprintf(buf, "Points: %i", score1);
-    if (player == Gracz2) sprintf(buf, "Points: %i", score2);
-    drawText(buf, 100, 60);
-}
-
 int makeMove(int player) {
     bool picked = false;
     bool chosen = false;
     char currenttile;
+    if (tilesleft1 == -1 && tilesleft2 == -1) destroyWindow();
     if (tilesleft1 == 0 && tilesleft2 == 0) {
         endgame = true;
         clearArea(100, 100, 600, 600);
         drawFinalScreen("Game Over", player);
+        drawText("Press Escape to quit.", 350, 440);
         endTheGame(player);
     } else if (endgame) {
+        //clearArea(100, 100, 600, 600);
+        if (player == Gracz2) endTheGame(player);
     } else {
         showScoreboard(player);
+        clearArea(100, 60, 600, 30);
         drawText("Your turn.", 100, 80);
         drawText("Pick a tile you want to place:", itemsboard.DisplayX, itemsboard.DisplayY-20);
         while (!picked) {
             renderItemsboard(player);
             XNextEvent(display, &report);
             switch (report.type) {
+                case Expose : {
+                    drawText("Welcome to Micro-Scrabble!", 100, 20);
+                    if (player == Gracz1) drawText("You're player 1. You host the game.", 100, 40);
+                    if (player == Gracz2) drawText("You're player 2. You joined the game.", 100, 40);
+                    showScoreboard(player);
+                    drawText("Your turn.", 100, 80);
+                    drawText("Pick a tile you want to place:", itemsboard.DisplayX, itemsboard.DisplayY-20);
+                    if ( report.xexpose.count != 0 ) break;
+                    break;
+                }
                 case ButtonPress : {
                     switch (report.xbutton.button) {
-                        case Expose : {
-                            if ( report.xexpose.count != 0 ) break;
-                            break;
-                        }
                         case ConfigureNotify : {
                             width  = report.xconfigure.width;
                             height = report.xconfigure.height;
@@ -402,7 +428,7 @@ int makeMove(int player) {
                             if (x >= 100 && x <= 700 && y >= 800 && y <= 900) {
                                 int addr = (x-100)/100;
                                 currenttile = itemsboard.item[addr];
-                                printf("%i\n", currenttile);
+                                //printf("%i\n", currenttile);
                                 itemsboard.item[addr] = randomLetter();
                                 if (player == Gracz1) tilesleft1--;
                                 if (player == Gracz2) tilesleft2--;
@@ -413,12 +439,9 @@ int makeMove(int player) {
                         default : break;
                     }
                     break;
-                }   
+                }
                 case DestroyNotify : {
                     destroyWindow();
-                }      
-                case KeyPress : {
-                    if (report.xkey.keycode == 0x09) destroyWindow();
                 }
             }
         }
@@ -431,12 +454,17 @@ int makeMove(int player) {
             drawBoard();
             XNextEvent(display, &report);
             switch (report.type) {
+                case Expose : {
+                    drawText("Welcome to Micro-Scrabble!", 100, 20);
+                    if (player == Gracz1) drawText("You're player 1. You host the game.", 100, 40);
+                    if (player == Gracz2) drawText("You're player 2. You joined the game.", 100, 40);
+                    showScoreboard(player);
+                    sprintf(buffer, "You picked \"%c\"! Place it on a free spot on the board.", currenttile);
+                    if ( report.xexpose.count != 0 ) break;
+                    break;
+                }
                 case ButtonPress : {
                     switch (report.xbutton.button) {
-                        case Expose : {
-                            if ( report.xexpose.count != 0 ) break;
-                            break;
-                        }
                         case ConfigureNotify : {
                             width  = report.xconfigure.width;
                             height = report.xconfigure.height;
@@ -455,19 +483,16 @@ int makeMove(int player) {
 
                                 if (player == Gracz1) score1 += checkScore(((x-100)/100), ((y-100)/100));
                                 if (player == Gracz2) score2 += checkScore(((x-100)/100), ((y-100)/100));
+                                clearArea(100, 45, 600, 55);
                                 showScoreboard(player);
                                 hideBoard();
                                 drawBoard();
                                 hideItemsboard();
                                 if (tilesleft1 == 0 && tilesleft2 == 0 && player == Gracz1) {
                                     endgame = true;
-                                    clearArea(100, 100, 600, 600);
-                                    drawFinalScreen("Game Over", player);
                                 }
-                                if (tilesleft2 == 0 && player == Gracz2) {
+                                if (tilesleft1 == 0 && tilesleft2 == 0 && player == Gracz2) {
                                     endgame = true;
-                                    clearArea(100, 100, 600, 600);
-                                    drawFinalScreen("Game Over", player);
                                 }
                                 clearArea(100, 60, 600, 20);
                                 if (player == Gracz1) drawText("Waiting for the turn of the player 2.", 100, 80);
@@ -478,12 +503,9 @@ int makeMove(int player) {
                         default : break;
                     }
                     break;
-                }   
+                }
                 case DestroyNotify : {
                     destroyWindow();
-                }      
-                case KeyPress : {
-                    if (report.xkey.keycode == 0x09) destroyWindow();
                 }
             }
         }
@@ -498,8 +520,32 @@ int makeMove(int player) {
 int main(int argc, char* argv[]) {
 
     srand(time(NULL));
-    //loadDictionary();
     signal(SIGINT, cleanMemory);
+
+    if((memory = shmget(key,sizeof(int)*MEMSIZE,IPC_CREAT|IPC_EXCL|0777)) == -1){
+        if((memory = shmget(key,sizeof(int)*MEMSIZE,0)) == -1){
+            printf("\nERROR: Cannot connect with the game - no shared memory!\n");
+            getchar();
+            exit(1);
+        } else {
+            //printf("\nTwoja nazwa gracza: ");
+        }
+    } else {
+        //printf("\nTwoja nazwa gracza: ");
+    }
+    semaphores = semget(key,2,0777|IPC_CREAT|IPC_EXCL);
+    if(semaphores == -1){
+        semaphores = semget(key,2,0);
+        playername = "Gracz2";
+        tilesleft2 = 18;
+        printf("You start as a player 2\n");
+    }
+    else {
+        tilesleft2 = 18;
+        playername = "Gracz1";
+        printf("You start as a player 1\n");
+    }
+    shm = shmat(memory,(void*)0,0);
 
     appname = argv[0];
     /*  Allocate memory for our structures  */
@@ -518,19 +564,16 @@ int main(int argc, char* argv[]) {
     }
 
 
-    /*  Get screen size from display structure macro  */
 
     screen_num = DefaultScreen(display);
     display_width = DisplayWidth(display, screen_num);
     display_height = DisplayHeight(display, screen_num);
 
 
-    /*  Set initial window size and position, and create it  */
+
 
     x = 0;
     y = 0;
-    //width = display_width / 3;
-    //height = display_width / 3;
     width = 800;
     height = 900;
 
@@ -540,7 +583,6 @@ int main(int argc, char* argv[]) {
 	   WhitePixel(display, screen_num));
 
 
-    /*  Set hints for window manager before mapping window  */
 
     if (XStringListToTextProperty(&window_name, 1, &windowName) == 0) {
         fprintf(stderr, "%s: structure allocation for windowName failed.\n", appname);
@@ -565,23 +607,18 @@ int main(int argc, char* argv[]) {
 
     XSetWMProperties(display, win, &windowName, &iconName, argv, argc, size_hints, wm_hints, class_hints);
 
-    /*  Choose which events we want to handle  */
     XSelectInput(display, win, ExposureMask | KeyPressMask | ButtonPressMask | StructureNotifyMask);
 
 
-    /*  Load a font called "9x15"  */
     setFont("10x20");
-    /*  Create graphics context  */
 
     gc = XCreateGC(display, win, 0, &values);
     XSetFont(display, gc, font_info->fid);
     XSetBackground(display, gc, WhitePixel(display, screen_num));
     XSetForeground(display, gc, BlackPixel(display, screen_num));
 
-    /*  Display Window  */
     XMapWindow(display, win);
-    
-    //  Enter event loop 
+
 
     //  LET THE SHOW BEGIN!
 
@@ -597,79 +634,68 @@ int main(int argc, char* argv[]) {
         if (start) {
             drawText("Welcome to Micro-Scrabble!", 100, 20);
             printf("Bring it on!\n");
-            if((memory = shmget(key,sizeof(int)*MEMSIZE,IPC_CREAT|IPC_EXCL|0777)) == -1){
-                if((memory = shmget(key,sizeof(int)*MEMSIZE,0)) == -1){
-                    printf("\nERROR: Cannot connect with the game - no shared memory!\n");
-                    getchar();
-                    exit(1);
-                } else {
-                    //printf("\nTwoja nazwa gracza: ");
-                }
-            } else {
-                //printf("\nTwoja nazwa gracza: ");
-            }
-            semaphores = semget(key,2,0777|IPC_CREAT|IPC_EXCL);
-            if(semaphores == -1){
-                semaphores = semget(key,2,0);
-                playername = "Gracz2";
-                printf("You start as a player 2\n");
-            }
-            else {
-                playername = "Gracz1";
-                printf("You start as a player 1\n");
-            }
-            shm = shmat(memory,(void*)0,0);
             start = false;
         }
 
-        ///*
         if (strcmp(playername,"Gracz1") == 0) {
             semctl(semaphores,sem1,SETVAL,0);
-            semctl(semaphores,sem2,SETVAL,1);
             clearArea(100, 60, 600, 20);
-            drawText("You're player 1.", 100, 40);
+            drawText("You're player 1. You host the game.", 100, 40);
+            semctl(semaphores,sem2,SETVAL,1);
             if(makeMove(Gracz1) == 0){
                 exportMemory();
                 hideBoard();
                 drawBoard();
                 while(1){
-                    drawBoard();
-                    semop(semaphores,&Gracz2_lock,1);
-                    importMemory();
-                    drawBoard();
-                    if(makeMove(Gracz1) == 0){
-                        exportMemory();
+                    if (tilesleft1 == -1) destroyWindow();
+                    if (endgame) {
+                        clearArea(100, 100, 600, 600);
+                        drawFinalScreen("Game Over", Gracz1);
+                        drawText("Press Escape to quit.", 350, 440);
+                        endTheGame(Gracz1);
+                    } else {
                         drawBoard();
+                        semop(semaphores,&Gracz2_lock,1);
+                        importMemory();
+                        drawBoard();
+                        if(makeMove(Gracz1) == 0){
+                            exportMemory();
+                            drawBoard();
+                        }
                     }
                     semop(semaphores,&Gracz2_unlock,1);
                 }
             }
         } else {
             clearArea(100, 60, 600, 20);
-            drawText("You're player 2.", 100, 40);
             while (2137==2137) {
+                drawText("You're player 2. You joined the game.", 100, 40);
+                drawText("Wait till the player 1 starts the game.", 100, 80);
                 importMemory();
+                if (tilesleft2 == -1) destroyWindow();
                 if(is_ready() == 0){
                     while(1){
-                        drawBoard();
-                        semop(semaphores,&Gracz1_lock,1);
-                        importMemory();
-                        drawBoard();
-                        if(makeMove(Gracz2) == 0){
-                            exportMemory();
+                        if (tilesleft2 == -1) destroyWindow();
+                        if (endgame) {
+                            clearArea(100, 100, 600, 600);
+                            drawFinalScreen("Game Over", Gracz2);
+                            drawText("Press Escape to quit.", 350, 440);
+                            endTheGame(Gracz2);
+                        } else {
                             drawBoard();
+                            semop(semaphores,&Gracz1_lock,1);
+                            importMemory();
+                            drawBoard();
+                            if(makeMove(Gracz2) == 0){
+                                exportMemory();
+                                drawBoard();
+                            }
                         }
                         semop(semaphores,&Gracz1_unlock,1);
                     }
                 }
             }
         }
-        //*/
-        
-
-        // trash
-
-        //makeMoveBeta();
     }
-    return EXIT_SUCCESS; 
+    return EXIT_SUCCESS;
 }
